@@ -1,0 +1,5 @@
+LIBRARY "shellfun"
+
+EXPORTS
+	ShellFolderCreateWindow
+	ShellFolderInitData
