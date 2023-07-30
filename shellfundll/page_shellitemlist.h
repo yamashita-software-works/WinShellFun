@@ -329,9 +329,6 @@ public:
 
 				if( iSelItem != -1 )
 				{
-//					UINT fSubItem = 0;
-//					int iSubItem = ListViewEx_SubItemHitTest(m_hWndList,pt,&fSubItem);
-
 					RECT rcItem;
 					if( ListView_GetItemRect(m_hWndList,iSelItem,&rcItem,LVIR_BOUNDS) )
 					{
@@ -349,16 +346,8 @@ public:
 
 						MapWindowPoints(m_hWndList,NULL,&pt,1);
 
-						UINT cmd; // TPM_RETURNCMD
-//						cmd = (UINT)TrackPopupMenuEx(hMenu,TPM_LEFTALIGN|TPM_TOPALIGN|TPM_NONOTIFY,pt.x,pt.y,m_hWnd,NULL);
-						cmd = (UINT)TrackPopupMenuEx(hMenu,TPM_LEFTALIGN|TPM_TOPALIGN|TPM_NONOTIFY,pt.x,pt.y,GetActiveWindow(),NULL);
-/*
-						switch( cmd )
-						{
-							case ID_FILE_OPEN_FILE:
-								OnCmd
-						}
-*/
+						TrackPopupMenuEx(hMenu,TPM_LEFTALIGN|TPM_TOPALIGN|TPM_NONOTIFY,pt.x,pt.y,GetActiveWindow(),NULL);
+
 						DestroyMenu(hMenu);
 					}
 				}
