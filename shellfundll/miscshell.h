@@ -1,6 +1,6 @@
 #pragma once
 
-void InitShellImageList(HIMAGELIST& hImageList,HIMAGELIST& hImageListSmall);
+HRESULT GetShellImageList(HIMAGELIST *phImageList,HIMAGELIST *phImageListSmall);
 int GetShellIconIndexIL(LPITEMIDLIST lpi, UINT uFlags);
 HICON GetShellIconIL(LPITEMIDLIST lpi, UINT uFlags);
 BOOL GetShellItemName(LPSHELLFOLDER lpsf, LPITEMIDLIST lpi, DWORD dwFlags, LPWSTR lpFriendlyName,int cchFriendlyName);

@@ -52,33 +52,6 @@ public:
 		return DSA_GetItem(m_hdsa,index,p);
 	}
 
-// DSA_EnumCallback
-/*
-	T** GetData()
-	{
-		return (T**)DSA_GetPtrPtr(m_hdsa);
-	}
-
-	INT Add(T* pitem)
-	{
-		return DSA_AppendPtr(m_hdsa,pitem);
-	}
-
-	INT Insert(INT iIndex,T* ptr)
-	{
-		return DSA_InsertPtr(m_hdsa,iIndex,ptr);
-	}
-
-	T* Get(INT iIndex)
-	{
-		return (T*)DSA_GetPtr(m_hdsa,iIndex);
-	}
-
-	INT GetIndex(const T *ptr)
-	{
-		return DSA_GetPtrIndex(m_hdsa,ptr);
-	}
-*/
 	BOOL DeleteAll()
 	{
 		return DSA_DeleteAllItems(m_hdsa);

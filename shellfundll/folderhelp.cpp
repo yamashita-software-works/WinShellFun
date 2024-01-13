@@ -1,4 +1,18 @@
-// 2023.07.06
+//****************************************************************************
+//
+//  folderhelp.cpp
+//
+//  Shell folder help functions.
+//
+//  Auther: YAMASHITA Katsuhiro
+//
+//  Create: 2023.07.06
+//
+//****************************************************************************
+//
+//  Copyright (C) YAMASHITA Katsuhiro. All rights reserved.
+//  Licensed under the MIT License.
+//
 #include "stdafx.h"
 #include "folderhelp.h"
 #include "dsarray.h"

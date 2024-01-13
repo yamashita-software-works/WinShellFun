@@ -23,6 +23,7 @@
 #include <shlwapi.h>
 #include <strsafe.h>
 #include <shlobj.h>
+#include <commdlg.h>
 
 #if _MSC_VER <= 1500
 #define nullptr NULL
@@ -34,11 +35,19 @@
 #include "debug.h"
 #include "mem.h"
 
-#include "..\shellfundll\shellfun.h"
 #include "..\libmisc\libmisc.h"
 #include "..\inc\common.h"
 #include "..\inc\common_resid.h"
+#include "..\inc\appdef_resid.h"
+#include "..\inc\common_shellfun.h"
 #include "menu.h"
+#include "..\shellfundll\shellfun.h"
+
+#include "mdichild.h"
+typedef struct _MDICHILDFRAMEINIT_DIRFILES
+{
+	MDICHILDFRAMEINIT hdr;
+} MDICHILDFRAMEINIT_DIRFILES; 
 
 #define SetRedraw(h,f)	SendMessage(h,WM_SETREDRAW,(WPARAM)f,0)
 

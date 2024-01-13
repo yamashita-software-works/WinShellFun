@@ -89,6 +89,7 @@ SOURCES = \
 	menu.cpp \
 	winshellfun.cpp \
 	mdichild.cpp \
+	find.cpp \
 	winshellfun.rc
 
 _USERLIB=..\lib

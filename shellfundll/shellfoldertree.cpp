@@ -15,6 +15,7 @@
 //
 #include "stdafx.h"
 #include "basewindow.h"
+#include "shellfun.h"
 #include "shellfoldertree.h"
 #include "miscshell.h"
 #include "folderhelp.h"
@@ -51,6 +52,11 @@ public:
 	{
 		_SafeMemFree( m_pszDirectoryPath );
 	}
+
+	typedef enum {
+		ITEM_BLANK,
+		ITEM_SHELL_FOLDER_ITEMS,
+	} TREEITEMTYPE;
 
 	typedef struct _TREEITEM
 	{
@@ -257,9 +263,16 @@ public:
 		path.pszName = (PWSTR)pszDisplayName;
 		path.pszLocation = (PWSTR)NULL;
 		path.pGuid = pGuid;
-		path.Type = pItem->ItemType;
 		path.hIcon = hIcon;
-
+		switch( pItem->ItemType )
+		{
+			case ITEM_SHELL_FOLDER_ITEMS:
+				path.ViewType = VIEW_FOLDERCONTENTSBROWSER;
+				break;
+			default:
+				ASSERT(FALSE);
+				return ;
+		}
 		SendMessage(m_hWndNotice,WM_CONTROL_MESSAGE,wParam,(LPARAM)&path);
 	}
 
@@ -379,7 +392,7 @@ public:
 				HICON hIcon;
 				hIcon = ImageList_GetIcon(TreeView_GetImageList(pnmtv->hdr.hwndFrom,TVSIL_NORMAL),tvi.iImage,ILD_NORMAL);
 
-				NotifyHost(CODE_SELECT_FOLDER,&pItem->Guid,pItem->DisplayName,pItem->Path,pItem,hIcon);
+				NotifyHost(UI_SELECT_FOLDER,&pItem->Guid,pItem->DisplayName,pItem->Path,pItem,hIcon);
 			}
 		}
 		return 0;

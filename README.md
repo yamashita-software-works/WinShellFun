@@ -1,25 +1,34 @@
 # WinShellFun
  
-**Version 0.1.0.0 Preview**
+**0.2.6.0 Preview**
 
-Windows Shell Folderに含まれるアイテムの解析名を表示します。
+現在のバージョンでは以下の情報をMDI子ウィンドウに表示します。
 
-![WinShellFun](img/image-win10.png "WinShellFun")
+- **Shell Folder Contents Browser**   
 
-左のペインに表示されるシェルフォルダ一覧は、winshellfun.iniファイルに定義されています。
+  シェルのフォルダに含まれるアイテムの解析名を表示します。
 
-※所謂"God Mode"フォルダは初期状態ではコメントアウトされています。表示したい場合はwinshellfun.iniの下記の行のコメントを外して（行頭の ; を消す）ください。
+   ![WinShellFun](img/image-win10.png "WinShellFun Screen Shot")
 
-``` ;{ED7BA470-8E54-465E-825C-99712043E01C} ; CLSID_All_Tasks (God Mode) ```
+   左のペインに表示されるシェルフォルダ一覧は、winshellfun.iniファイルに定義されています。
 
-上記を有効にすると%TEMP%フォルダに、GodModeフォルダを作成するので注意してください。
+   >※"God Mode"フォルダは初期状態ではコメントアウトされています。表示したい場合はwinshellfun.iniの下記の行のコメントを外してください（行頭の ; を消す）。
+   >
+   >``` ;{ED7BA470-8E54-465E-825C-99712043E01C} ; CLSID_All_Tasks (God Mode) ```
+   >
+   >上記を有効にすると%TEMP%フォルダに、GodModeフォルダを作成するので注意してください。
+
+- **Recycle Bin Folder Viewer**   
+
+   ごみ箱に入っているファイルの情報を表示します。   
+   コンテキストメニュー（項目を選択して右クリック）から、選択したファイルの復元または削除が選択できます。
 
 
 ### 既知の問題
 
-- History フォルダを選択した時に表示される項目をダブルクリックするとウィンドウが消えて終了します。   
+- Shell Folder Contents Browserで History フォルダを選択した時、リストに表示される項目をダブルクリックするとウィンドウが消えて終了します。   
 （項目をオープンする際にShellExecuteEx APIを呼び出すとAPI内部でスタックオーバーフローを起こしてエラー終了する）   
-気になる場合はwinshellfun.iniから ``` {D9DC8A3B-B784-432E-A781-5A1130A75963} ; FOLDERID_History ``` 行をコメントアウトしてください。
+気になる場合はwinshellfun.iniから ``` {D9DC8A3B-B784-432E-A781-5A1130A75963} ; FOLDERID_History ``` 行をコメントアウトしてください（行頭に ; を挿入する）。
 
 
 ## 使い方
@@ -32,6 +41,17 @@ Windows Shell Folderに含まれるアイテムの解析名を表示します。
 
 1. 右ペインの項目をダブルクリックすると項目を開きます。
 
+※ ソースからビルドした場合は、iniフォルダにあるwinshellfun.iniを実行ファイルと同じ場所にコピーしてください。
+
+> コマンドラインスイッチ(仮)   
+>
+> -fb 起動時に Shell Folder Contents Browser を開きます。   
+> -rb 起動時に Recycle Bin Folder Viewer を開きます。   
+> -mx MDI子ウィンドウを最大化で開きます。   
+>
+> オプションスイッチを指定しない場合は、Shell Folder Contents Browserが非最大化で開きます。
+>
+> ※各スイッチは現状は仮のものです。
 
 ## Build 方法
 

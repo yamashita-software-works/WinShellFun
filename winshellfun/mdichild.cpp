@@ -48,14 +48,25 @@ LRESULT CALLBACK MDIChildWndProc(HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			MDICREATESTRUCT *pmdics = (MDICREATESTRUCT *)pcs->lpCreateParams;
 			MDICREATEPARAM *pmcp = (MDICREATEPARAM *)pmdics->lParam;
 
-			MDICLIENTWNDDATA *pd = new MDICLIENTWNDDATA;
-			ZeroMemory(pd,sizeof(MDICLIENTWNDDATA));
+			MDICHILDWNDDATA *pd = new MDICHILDWNDDATA;
+			ZeroMemory(pd,sizeof(MDICHILDWNDDATA));
 			SetWindowLongPtr(hWnd,GWLP_USERDATA,(LONG_PTR)pd);
+
+			SendMessage(hWnd,WM_SETICON,ICON_SMALL,(LPARAM)pmcp->hIcon);
+
+			break;
+		}
+		case WM_DESTROY:
+		{
+			DestroyIcon((HICON)SendMessage(hWnd,WM_GETICON,ICON_SMALL,0));
+
+			MDICHILDWNDDATA *pd = (MDICHILDWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
+			SendMessage(GetParent(GetParent(hWnd)),WM_MDI_CHILDFRAME_CLOSE,(WPARAM)hWnd,0);
 			break;
 		}
 		case WM_NCDESTROY:
 		{
-			MDICLIENTWNDDATA *pd = (MDICLIENTWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
+			MDICHILDWNDDATA *pd = (MDICHILDWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
 			if( pd )
 			{
 				delete pd;
@@ -68,16 +79,19 @@ LRESULT CALLBACK MDIChildWndProc(HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam)
 			int cx = GET_X_LPARAM(lParam);
 			int cy = GET_Y_LPARAM(lParam);
 
-			MDICLIENTWNDDATA *pd = (MDICLIENTWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
+			MDICHILDWNDDATA *pd = (MDICHILDWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
 			SetWindowPos(pd->hWndView,NULL,0,0,cx,cy,SWP_NOZORDER);
 
 			break;
 		}
 		case WM_MDIACTIVATE:
 		{
-			MDICLIENTWNDDATA *pd = (MDICLIENTWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
+			MDICHILDWNDDATA *pd = (MDICHILDWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
 
-			SendMessage(_GetMainWnd(),WM_MDIACTIVATE,wParam,lParam);
+			if( lParam == 0 || (HWND)lParam == hWnd )
+			{
+				SendMessage(_GetMainWnd(),WM_MDIACTIVATE,wParam,lParam);
+			}
 
 			if( (HWND)wParam == hWnd )
 			{
@@ -88,16 +102,32 @@ LRESULT CALLBACK MDIChildWndProc(HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam)
 				if( pd->hWndFocus )
 					SetFocus(pd->hWndFocus);
 			} 
+
 			break;
 		}
 		case WM_SETFOCUS:
 		{
-			MDICLIENTWNDDATA *pd = (MDICLIENTWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
+			MDICHILDWNDDATA *pd = (MDICHILDWNDDATA *)GetWindowLongPtr(hWnd,GWLP_USERDATA);
 
 			if( pd->hWndView )
 				SetFocus(pd->hWndView);
 
 			return 0;
+		}
+		case WM_PARENTNOTIFY:
+		{
+			if( MDIGetActive(GetParent(hWnd)) != hWnd )
+			{
+				switch( wParam )
+				{
+					case WM_MBUTTONDOWN:
+					case WM_RBUTTONDOWN:
+					case WM_XBUTTONDOWN:
+						SendMessage(GetParent(hWnd)/*MDIClient*/,WM_MDIACTIVATE,(WPARAM)hWnd,0);
+						break;
+				}
+			}
+			break;
 		}
 	}
 	return DefMDIChildProc(hWnd,msg,wParam,lParam);
@@ -116,6 +146,7 @@ ATOM RegisterMDIChildFrameClass(HINSTANCE hInstance)
 	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW+1); 
     wcex.lpszMenuName  = NULL;
     wcex.lpfnWndProc   = (WNDPROC)&MDIChildWndProc; 
+	wcex.hIcon         = NULL;
     wcex.hIconSm       = NULL;
     wcex.lpszMenuName  = (LPCTSTR) NULL; 
     wcex.cbWndExtra    = CBWNDEXTRA; 
@@ -142,7 +173,7 @@ HWND CreateMDIClient(HWND hWnd)
 	return hWndMDIClient;
 }
 
-HWND CreateMDIChildFrame(HWND hWndMDIClient,PCWSTR pszTitle,LPARAM lParam,BOOL bMaximize)
+HWND CreateMDIChildFrame(HWND hWndMDIClient,PCWSTR pszTitle,MDICHILDFRAMEINIT *pmdiInit,LPARAM lParam,BOOL bMaximize)
 { 
     HWND hwnd; 
     MDICREATESTRUCT mcs = {0};
@@ -150,9 +181,9 @@ HWND CreateMDIChildFrame(HWND hWndMDIClient,PCWSTR pszTitle,LPARAM lParam,BOOL b
 	mcs.szTitle = pszTitle;
 	mcs.szClass = MDICHILD_CLASSNAME;
 	mcs.hOwner  = _GetResourceInstance();
-    mcs.x = mcs.cx = CW_USEDEFAULT; 
-    mcs.y = mcs.cy = CW_USEDEFAULT; 
-    mcs.style = WS_VISIBLE | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CAPTION | WS_CLIPCHILDREN; 
+	mcs.x = mcs.cx = CW_USEDEFAULT; 
+	mcs.y = mcs.cy = CW_USEDEFAULT; 
+	mcs.style = WS_VISIBLE | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CAPTION | WS_CLIPCHILDREN; 
 	mcs.lParam = lParam;
 
 	if( !bMaximize )
@@ -173,8 +204,17 @@ HWND CreateMDIChildFrame(HWND hWndMDIClient,PCWSTR pszTitle,LPARAM lParam,BOOL b
 		mcs.cy = rc.bottom - rc.top;
 	}
 #endif
+	if( pmdiInit )
+	{
+		RECT rc;
+		GetClientRect(hWndMDIClient,&rc);
+		mcs.x = pmdiInit->pt.x;
+		mcs.y = pmdiInit->pt.y;
+		mcs.cx = pmdiInit->size.cx;
+		mcs.cy = pmdiInit->size.cy;
+	}
 
 	hwnd = (HWND)SendMessage(hWndMDIClient,WM_MDICREATE,0,(LPARAM)&mcs); 
- 
+
     return hwnd; 
 } 

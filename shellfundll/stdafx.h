@@ -16,17 +16,20 @@
 #include <tchar.h>
 
 #define WIN32_LEAN_AND_MEAN
-
 #define INITGUID
+
 #include <windows.h>
 #include <windowsx.h>
 #include <commctrl.h>
 #include <shellapi.h>
 #include <shlwapi.h>
 #include <shlobj.h>
+#include <shlguid.h>
 #include <strsafe.h>
+#include <stgprop.h>
 #include <commoncontrols.h>
 #include <uxtheme.h>
+#include <commdlg.h>
 
 #include "debug.h"
 #include "mem.h"
@@ -35,8 +38,12 @@
 #include "common_control_helper.h"
 
 #include "dparray.h"
-#include "..\inc\common.h"
+#include "common.h"
 #include "..\inc\common_resid.h"
+#include "..\inc\common_shellfun.h"
+#include "..\inc\interface.h"
+#include "..\inc\listhelp.h"
+#include "appdef_resid.h"
 
 #define  _ASSERT ASSERT
 #define SetRedraw(h,f)	SendMessage(h,WM_SETREDRAW,(WPARAM)f,0)
@@ -131,32 +138,6 @@ typedef struct _SHELLITEMLIST
 //
 // Folder tree item ident
 //
-typedef enum {
-	ITEM_FOLDER_ROOT,
-	ITEM_BLANK,
-	ITEM_SHELL_FOLDER_ITEMS,
-	ITEM_SHELL_APPPATHS,
-} TREEITEMTYPE;
-
-//
-// WM_CONTROL_MESSAGE
-//
-#define WM_CONTROL_MESSAGE  (WM_APP+2000)
-
-// WPARAM LOWORD(f)
-#define CODE_SELECT_PATH        (0x0001)
-#define CODE_SELECT_FOLDER      CODE_SELECT_PATH
-
-typedef struct _SELECT_ITEM
-{
-	UINT Type;
-	PWSTR pszPath;
-	PWSTR pszName;
-	PWSTR pszLocation;
-	LPGUID pGuid;
-	HICON hIcon;
-} SELECT_ITEM;
-
 EXTERN_C
 BOOL
 WINAPI
@@ -164,3 +145,4 @@ GetIniFilePath(
 	PWSTR pszIniPath,
 	int cchIniPath
 	);
+

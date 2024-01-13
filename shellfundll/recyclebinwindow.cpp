@@ -1,12 +1,12 @@
 //****************************************************************************
 //
-//  shellfolderwindow.cpp
+//  recyclebinwindow.cpp
 //
-//  Implements the shell folder window.
+//  Implements the recycle bin folder viewer window.
 //
 //  Auther: YAMASHITA Katsuhiro
 //
-//  Create: 2023.06.26
+//  Create: 2024.01.05
 //
 //****************************************************************************
 //
@@ -17,27 +17,20 @@
 #include "resource.h"
 #include "miscshell.h"
 #include "shellfun.h"
-#include "shellfolderwindow.h"
-#include "shellfoldertree.h"
-#include "shellfolderview.h"
+#include "recyclebinwindow.h"
+#include "recyclebinview.h"
 
-class CShellFolderWindow : public CBaseWindow
+class CRecycleBinFolderWindow : public CBaseWindow
 {
 public:
-	HWND m_hWndTreeBase;
-
 	IViewBaseWindow *m_pView;
-
-	int m_cxSplitPos;
 
 	HWND m_hWndCtrlFocus;
 
-	CShellFolderWindow()
+	CRecycleBinFolderWindow()
 	{
 		m_hWnd = NULL;
-		m_hWndTreeBase = NULL;
 		m_pView = NULL;
-		m_cxSplitPos = 280;
 		m_hWndCtrlFocus = NULL;
 	}
 
@@ -45,14 +38,10 @@ public:
 	{
 		m_hWnd = hWnd;
 
-		// Create item tree view window
-		ShellFolderTree_CreateWindow(hWnd,&m_hWndTreeBase);
-
-		// Create information view host frame window
-		CreateShellFolderViewObject(GETINSTANCE(m_hWnd),&m_pView);
+		CreateRecycleBinWindowObject(GETINSTANCE(m_hWnd),&m_pView);
 		m_pView->Create(hWnd);
 
-		m_hWndCtrlFocus = m_hWndTreeBase;
+		m_hWndCtrlFocus = m_pView->GetHWND();
 
 		return 0;
 	}
@@ -96,16 +85,8 @@ public:
 
 	LRESULT OnCommand(HWND,UINT,WPARAM wParam,LPARAM)
 	{
-		switch( LOWORD(wParam) )
-		{
-			case ID_UP_DIR:
-				ShellFolderTree_SelectFolder(m_hWndTreeBase,L"..",0);
-				break;
-			default:
-				if( m_hWndCtrlFocus == m_pView->GetHWND() )
-					m_pView->InvokeCommand(LOWORD(wParam));
-				break;
-		}
+		if( m_hWndCtrlFocus == m_pView->GetHWND() )
+			m_pView->InvokeCommand(LOWORD(wParam));
 		return 0;
 	}
 
@@ -127,12 +108,13 @@ public:
 	{
 		switch( LOWORD(wParam) )
 		{
-			case UI_SELECT_FOLDER:
-				OnUpdateView( (SELECT_ITEM*)lParam );
-				break;
 			case UI_INIT_VIEW:
-				OnInitView( (PCWSTR)lParam );
+			{
+				SELECT_ITEM sel = {0};
+				sel.ViewType = VIEW_RECYCLEBINFOLDER;
+				m_pView->SelectView(&sel);
 				break;
+			}
 		}
 		return 0;
 	}
@@ -183,11 +165,7 @@ public:
 	{
 		HDWP hdwp = BeginDeferWindowPos(2);
 
-		if( m_hWndTreeBase )
-			DeferWindowPos(hdwp,m_hWndTreeBase,NULL,0,0,m_cxSplitPos,cy,SWP_NOZORDER);
-
-		if( m_pView )
-			DeferWindowPos(hdwp,m_pView->GetHWND(),NULL,m_cxSplitPos,0,cx-m_cxSplitPos,cy,SWP_NOZORDER);
+		DeferWindowPos(hdwp,m_pView->GetHWND(),NULL,0,0,cx,cy,SWP_NOZORDER);
 
 		EndDeferWindowPos(hdwp);
 	}
@@ -196,50 +174,26 @@ public:
 	{
 		HWND hwndMDIChildFrame = GetParent(m_hWnd);
 
-		// Update MDI child icon
-		HICON hIcon = (HICON)SendMessage(hwndMDIChildFrame,WM_GETICON,ICON_SMALL,0);
-		if( hIcon )
-			DestroyIcon(hIcon);
-		SendMessage(hwndMDIChildFrame,WM_SETICON,ICON_SMALL,(LPARAM)pSelItem->hIcon);
-		DrawMenuBar(GetParent(GetParent(hwndMDIChildFrame)));
-
-		// Update title
-		SetWindowText(hwndMDIChildFrame,pSelItem->pszName);
-
 		m_pView->SelectView(pSelItem);
-	}
-
-	VOID OnInitView(PCWSTR pszIniFilePath)
-	{
-		SetIniFilePath(pszIniFilePath);
-		InitData( L"" );
 	}
 
 	VOID InitData(PCWSTR pszDirectoryPath)
 	{
-		ShellFolderTree_InitData(m_hWndTreeBase,m_hWnd);
-		FillTraverseItems(pszDirectoryPath);
 	}
 
 	VOID InitLayout(const RECT *prcDesktopWorkArea)
 	{
-		ShellFolderTree_InitLayout(m_hWndTreeBase,NULL);
 		m_pView->InitLayout(NULL);
-	}
-
-	VOID FillTraverseItems(PCWSTR pszDirectoryPath)
-	{
-		ShellFolderTree_FillItems(m_hWndTreeBase,pszDirectoryPath);
 	}
 };
 
 //////////////////////////////////////////////////////////////////////////////
 
-HWND ShellFolderWindow_CreateWindow(HWND hWndParent)
+HWND CreateRecycleBinWindow(HWND hWndParent)
 {
-	CShellFolderWindow::RegisterClass(GETINSTANCE(hWndParent));
+	CRecycleBinFolderWindow::RegisterClass(GETINSTANCE(hWndParent));
 
-	CShellFolderWindow *pWnd = new CShellFolderWindow;
+	CRecycleBinFolderWindow *pWnd = new CRecycleBinFolderWindow;
 
-	return pWnd->Create(hWndParent,0,L"CShellFolderWindow",WS_CHILD|WS_VISIBLE|WS_CLIPCHILDREN,WS_EX_CONTROLPARENT);
+	return pWnd->Create(hWndParent,0,L"CRecycleBinFolderWindow",WS_CHILD|WS_VISIBLE|WS_CLIPCHILDREN,WS_EX_CONTROLPARENT);
 }

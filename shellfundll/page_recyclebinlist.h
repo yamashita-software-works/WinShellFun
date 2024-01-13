@@ -1,13 +1,13 @@
 #pragma once
 //***************************************************************************
 //*                                                                         *
-//*  page_shellitemlist.h                                                   *
+//*  page_recyclebinlist.h                                                  *
 //*                                                                         *
-//*  Shell folder contents browser list page.                               *
+//*  Recycle bin folder viewer list page.                                   *
 //*                                                                         *
 //*  Author: YAMASHITA Katsuhiro                                            *
 //*                                                                         *
-//*  Create: 2023-07-06                                                     *
+//*  Create: 2024-01-05                                                     *
 //*                                                                         *
 //***************************************************************************
 //
@@ -18,58 +18,59 @@
 #include "dparray.h"
 #include "column.h"
 #include "miscshell.h"
-#include "folderhelp.h"
+#include "recyclebinhelp.h"
+#include "simplevalarray.h"
 
-typedef struct _LVSHELLITEM
+typedef struct _LVRECYCLEBINITEM
 {
 	UINT Type;
-	CShellItem *pFI;
-} LVSHELLITEM, *PLVSHELLITEM;
+	RECYCLEBIN_FILE_ITEM *pFI;
+} LVRECYCLEBINITEM, *PLVRECYCLEBINITEM;
 
-struct CLVShellItem : public LVSHELLITEM
+struct CRecycleBinItem : public LVRECYCLEBINITEM
 {
-	CLVShellItem()
+	CRecycleBinItem()
 	{
-		memset(this,0,sizeof(LVSHELLITEM));
+		memset(this,0,sizeof(LVRECYCLEBINITEM));
 	}
 };
 
 //////////////////////////////////////////////////////////////////////////////
 
-class CShellItemListViewPage : public CPageWndBase
+class CRecycleBinListViewPage : public CPageWndBase
 {
 	HWND m_hWndList;
+
+	RECYCLEBINITEMLIST *m_pRecycleBinItem;
 
 	struct {
 		int CurrentSubItem;
 		int Direction;
 	} m_Sort;
 
-	COLUMN_HANDLER_DEF<CShellItemListViewPage> *m_disp_proc;
-	COMPARE_HANDLER_PROC_DEF<CShellItemListViewPage,CLVShellItem> *m_comp_proc;
+	COLUMN_HANDLER_DEF<CRecycleBinListViewPage> *m_disp_proc;
+	COMPARE_HANDLER_PROC_DEF<CRecycleBinListViewPage,CRecycleBinItem> *m_comp_proc;
 
 	CColumnList m_columns;
 
-	GUID m_CurGuid;
-	PWSTR m_pszCurPath;
-
 public:
-	CShellItemListViewPage()
+	CRecycleBinListViewPage()
 	{
 		m_hWndList = NULL;
-		m_Sort.CurrentSubItem = -1;
-		m_Sort.Direction = 0;
+		m_pRecycleBinItem = NULL;
+		m_Sort.CurrentSubItem = 0;
+		m_Sort.Direction = 1;
 		m_disp_proc = NULL;
 		m_comp_proc = NULL;
-		m_pszCurPath = NULL;
-		ZeroMemory(&m_CurGuid,sizeof(m_CurGuid));
 	}
 
-	~CShellItemListViewPage()
+	~CRecycleBinListViewPage()
 	{
 		delete[] m_disp_proc;
 		delete[] m_comp_proc;
-		_SafeMemFree(m_pszCurPath);
+
+		if( m_pRecycleBinItem )
+			FreeRecycleBinItems(m_pRecycleBinItem);
 	}
 
 	LRESULT OnCreate(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -81,7 +82,11 @@ public:
                               hWnd,
                               (HMENU)0,
                               GetModuleHandle(NULL), 
-                              NULL); 
+                              NULL);
+
+		WCHAR szIniPath[MAX_PATH];
+		GetIniFilePath(szIniPath,MAX_PATH);
+		m_columns.SetIniFilePath(szIniPath);
 
 		InitList(m_hWndList);
 
@@ -112,10 +117,10 @@ public:
 				return OnGetDispInfo(pnmhdr);
 			case LVN_DELETEITEM:
 				return OnDeleteItem(pnmhdr);
-			case LVN_ITEMACTIVATE:
-				return OnItemActivate(pnmhdr);
 			case LVN_COLUMNCLICK:
 				return OnColumnClick(pnmhdr);
+			case LVN_GETEMPTYMARKUP:
+				return OnGetEmptyMarkup(pnmhdr);
 			case NM_SETFOCUS:
 				return OnNmSetFocus(pnmhdr);
 		}
@@ -126,18 +131,11 @@ public:
 	{
 		NMLISTVIEW *pnmlv = (NMLISTVIEW *)pnmhdr;
 
-		CLVShellItem *pItem = (CLVShellItem *)pnmlv->lParam;
-		delete pItem->pFI;
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlv->lParam;
+		_SafeMemFree( pItem->pFI->ManagementPath );
+		_SafeMemFree( pItem->pFI->OriginalPath );
+		_SafeMemFree( pItem->pFI->Name );
 		delete pItem;
-		return 0;
-	}
-
-	LRESULT OnItemActivate(NMHDR *pnmhdr)
-	{
-		NMITEMACTIVATE *pnmia = (NMITEMACTIVATE *)pnmhdr;
-
-		OpenItem(pnmia->iItem);
-	
 		return 0;
 	}
 
@@ -149,10 +147,19 @@ public:
 		return 0;
 	}
 
+	LRESULT OnGetEmptyMarkup(NMHDR *pnmhdr)
+	{
+		NMLVEMPTYMARKUP *pnmemptymkup = (NMLVEMPTYMARKUP *)pnmhdr;
+		pnmemptymkup->dwFlags = EMF_CENTERED;
+		StringCchCopy(pnmemptymkup->szMarkup,_countof(pnmemptymkup->szMarkup),L"Recycle Bin is Empty");
+		RedrawWindow(m_hWndList,NULL,NULL,RDW_UPDATENOW|RDW_INVALIDATE);
+		return TRUE;
+	}
+
 	LRESULT OnColumnClick(NMHDR *pnmhdr)
 	{
 		NMLISTVIEW *pnmlv = (NMLISTVIEW *)pnmhdr;
-		CLVShellItem *pItem = (CLVShellItem *)pnmlv->lParam;
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlv->lParam;
 
 		DoSort(pnmlv->iSubItem,-1);
 
@@ -170,87 +177,95 @@ public:
 
 		if( bDirection )
 		{
-			if( iSubItem == 0 )
-			{
-				// 'name' column
-				if( m_Sort.CurrentSubItem != iSubItem )
-				{
-					m_Sort.Direction = 0;
-				}
-				else
-				{
-					if( m_Sort.Direction == 0 )
-						m_Sort.Direction = 1;
-					else if( m_Sort.Direction == 1 )
-						m_Sort.Direction = 2;
-					else if( m_Sort.Direction == 2 )
-						m_Sort.Direction = 0;
-				}
-			}
-			else
-			{
-				// other columns
-				if( m_Sort.CurrentSubItem != iSubItem )
-					m_Sort.Direction = -1;
-				m_Sort.Direction *= -1;
-			}
+			if( m_Sort.CurrentSubItem != iSubItem )
+				m_Sort.Direction = -1;
+			m_Sort.Direction *= -1;
 		}
 
-		SortItems(id,NULL);
+		SortItems(id);
 
-		if( iSubItem == 0 )
-		{
-			int n;
-			if( m_Sort.Direction == 0 )
-				n = 1;
-			else if( m_Sort.Direction == 1 )
-				n = -1;
-			else
-				n = 0;
-
-			ListViewEx_SetHeaderArrow(hwndLV,iSubItem,n);
-		}
-		else
-		{
-			ListViewEx_SetHeaderArrow(hwndLV,iSubItem,m_Sort.Direction);
-		}
+		ListViewEx_SetHeaderArrow(hwndLV,iSubItem,m_Sort.Direction);
 
 		m_Sort.CurrentSubItem = iSubItem;
 	}
 
 	LRESULT OnDisp_Name(UINT,NMLVDISPINFO *pnmlvdi)
 	{
-		CLVShellItem *pItem = (CLVShellItem *)pnmlvdi->item.lParam;
-		pnmlvdi->item.pszText = pItem->pFI->hdr.FileName;
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlvdi->item.lParam;
+		pnmlvdi->item.pszText = pItem->pFI->Name;
 		return 0;
 	}
 
-	LRESULT OnDisp_Attributes(UINT id,NMLVDISPINFO *pnmlvdi)
+	LRESULT OnDisp_TrushFileName(UINT,NMLVDISPINFO *pnmlvdi)
 	{
-		CLVShellItem *pItem = (CLVShellItem *)pnmlvdi->item.lParam;
-		StringCchPrintf(pnmlvdi->item.pszText,pnmlvdi->item.cchTextMax,L"0x%08X",pItem->pFI->FileAttributes);
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlvdi->item.lParam;
+		pnmlvdi->item.pszText = PathFindFileName(pItem->pFI->ManagementPath);
 		return 0;
 	}
 
-	LRESULT OnDisp_Path(UINT id,NMLVDISPINFO *pnmlvdi)
+	LRESULT OnDisp_OriginalPath(UINT id,NMLVDISPINFO *pnmlvdi)
 	{
-		CLVShellItem *pItem = (CLVShellItem *)pnmlvdi->item.lParam;
-		pnmlvdi->item.pszText = pItem->pFI->hdr.Path;
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlvdi->item.lParam;
+		pnmlvdi->item.pszText = pItem->pFI->OriginalPath;
+		return 0;
+	}
+
+	LRESULT OnDisp_ManagementPath(UINT id,NMLVDISPINFO *pnmlvdi)
+	{
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlvdi->item.lParam;
+		pnmlvdi->item.pszText = pItem->pFI->ManagementPath;
+		return 0;
+	}
+
+	LRESULT OnDisp_OriginalFileDate(UINT id,NMLVDISPINFO *pnmlvdi)
+	{
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlvdi->item.lParam;
+		ULONG64 dt = pItem->pFI->WriteTime;
+		_GetDateTimeStringEx2(dt,pnmlvdi->item.pszText,pnmlvdi->item.cchTextMax,NULL,NULL,0,0);
+		return 0;
+	}
+
+	LRESULT OnDisp_DateDeleted(UINT id,NMLVDISPINFO *pnmlvdi)
+	{
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlvdi->item.lParam;
+		ULONG64 dt = pItem->pFI->TrushFileInfo.ChangeTime.QuadPart;
+		_GetDateTimeStringEx2(dt,pnmlvdi->item.pszText,pnmlvdi->item.cchTextMax,NULL,NULL,0,0);
+		return 0;
+	}
+
+	LRESULT OnDisp_Size(UINT id,NMLVDISPINFO *pnmlvdi)
+	{
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pnmlvdi->item.lParam;
+
+		ULONGLONG cb = pItem->pFI->Size;
+
+		if( 1 )
+		{
+			StrFormatByteSizeW(cb,pnmlvdi->item.pszText,pnmlvdi->item.cchTextMax);
+		}
+		else
+		{
+			_CommaFormatString(cb,pnmlvdi->item.pszText);
+		}
 		return 0;
 	}
 
 	void InitColumnTable()
 	{
-		static COLUMN_HANDLER_DEF<CShellItemListViewPage> ch[] =
+		static COLUMN_HANDLER_DEF<CRecycleBinListViewPage> ch[] =
 		{
-			COL_HANDLER_MAP_DEF(COLUMN_Name,                   &CShellItemListViewPage::OnDisp_Name),
-			COL_HANDLER_MAP_DEF(COLUMN_ShellItemAttributes,    &CShellItemListViewPage::OnDisp_Attributes),
-			COL_HANDLER_MAP_DEF(COLUMN_ShellItemParseName,     &CShellItemListViewPage::OnDisp_Path),
+			COL_HANDLER_MAP_DEF(COLUMN_Name,                  &CRecycleBinListViewPage::OnDisp_Name),
+			COL_HANDLER_MAP_DEF(COLUMN_TrushFileName,         &CRecycleBinListViewPage::OnDisp_TrushFileName),
+			COL_HANDLER_MAP_DEF(COLUMN_Size,                  &CRecycleBinListViewPage::OnDisp_Size),
+			COL_HANDLER_MAP_DEF(COLUMN_OriginalFilePath,      &CRecycleBinListViewPage::OnDisp_OriginalPath),
+			COL_HANDLER_MAP_DEF(COLUMN_TrushFilePath,         &CRecycleBinListViewPage::OnDisp_ManagementPath),
+			COL_HANDLER_MAP_DEF(COLUMN_OriginalLastWriteDate, &CRecycleBinListViewPage::OnDisp_OriginalFileDate),
+			COL_HANDLER_MAP_DEF(COLUMN_DeletedTime,           &CRecycleBinListViewPage::OnDisp_DateDeleted),
 		};
 
-		m_disp_proc = new COLUMN_HANDLER_DEF<CShellItemListViewPage>[COLUMN_MaxItem];
+		m_disp_proc = new COLUMN_HANDLER_DEF<CRecycleBinListViewPage>[COLUMN_MaxItem];
 
-		ZeroMemory(m_disp_proc,sizeof(COLUMN_HANDLER_DEF<CShellItemListViewPage>) * COLUMN_MaxItem);
+		ZeroMemory(m_disp_proc,sizeof(COLUMN_HANDLER_DEF<CRecycleBinListViewPage>) * COLUMN_MaxItem);
 
 		for(int i = 0; i < _countof(ch); i++)
 		{
@@ -262,7 +277,7 @@ public:
 	LRESULT OnGetDispInfo(NMHDR *pnmhdr)
 	{
 		NMLVDISPINFO *pdi = (NMLVDISPINFO*)pnmhdr;
-		CLVShellItem *pItem = (CLVShellItem *)pdi->item.lParam;
+		CRecycleBinItem *pItem = (CRecycleBinItem *)pdi->item.lParam;
 
 		if( pdi->item.mask & LVIF_IMAGE )
 		{
@@ -326,15 +341,17 @@ public:
 				}
 			}
 		}
-		
+
 		if( iSelItem != -1 )
 		{
 			RECT rcItem;
 			if( ListView_GetItemRect(m_hWndList,iSelItem,&rcItem,LVIR_BOUNDS) )
 			{
 				HMENU hMenu = CreatePopupMenu();
-				AppendMenu(hMenu,MF_STRING,ID_FILE_OPEN_FILE,L"&Open");
 				AppendMenu(hMenu,MF_STRING,ID_EDIT_COPY,L"&Copy");
+				AppendMenu(hMenu,MF_STRING,0,NULL);
+				AppendMenu(hMenu,MF_STRING,ID_RECYCLEBIN_RESTORE,L"&Restore");
+				AppendMenu(hMenu,MF_STRING,ID_RECYCLEBIN_DELETE,L"&Delete");
 				SetMenuDefaultItem(hMenu,ID_FILE_OPEN_FILE,FALSE);
 				if( pt.x == -1 && pt.y == -1 )
 				{
@@ -407,9 +424,13 @@ public:
 		LVCOLUMN lvc = {0};
 
 		static COLUMN columns_filelist[] = {
-			{ COLUMN_Name,                L"Name",          0, 280, LVCFMT_LEFT|LVCFMT_SPLITBUTTON },
-			{ COLUMN_ShellItemAttributes, L"Attributes",    1, 100, LVCFMT_LEFT },
-			{ COLUMN_ShellItemParseName,  L"Parse Name",    2, 360, LVCFMT_LEFT },
+			{ COLUMN_Name,                   L"Name",                0, 280, LVCFMT_LEFT },
+			{ COLUMN_TrushFileName,          L"Trush File Name",     1, 140, LVCFMT_LEFT },
+			{ COLUMN_Size,                   L"Size",                2, 100, LVCFMT_RIGHT },
+			{ COLUMN_OriginalLastWriteDate,  L"Original File Date",  3, 160, LVCFMT_LEFT },
+			{ COLUMN_OriginalFilePath,       L"Original File Path",  4, 360, LVCFMT_LEFT },
+			{ COLUMN_DeletedTime,            L"Deleted Date",        5, 160, LVCFMT_LEFT },
+			{ COLUMN_TrushFilePath,          L"Trush File Path",     6, 360, LVCFMT_LEFT },
 		};
 
 		m_columns.SetDefaultColumns(columns_filelist,ARRAYSIZE(columns_filelist));
@@ -421,7 +442,7 @@ public:
 			const COLUMN *pcol = m_columns.GetDefaultColumnItem(i);
 			lvc.mask    = LVCF_FMT|LVCF_WIDTH|LVCF_TEXT|LVCF_ORDER;
 			lvc.fmt     = pcol->fmt;
-			lvc.cx      = pcol->cx;
+			lvc.cx      = DPI_SIZE_CX(pcol->cx);
 			lvc.pszText = pcol->Name;
 			lvc.iOrder  = pcol->iOrder;
 			int index = ListView_InsertColumn(hWndList,lvc.iOrder,&lvc);
@@ -433,7 +454,7 @@ public:
 	BOOL LoadColumns(HWND hWndList)
 	{
 		COLUMN_TABLE *pcoltbl;
-		if( m_columns.LoadUserDefinitionColumnTable(&pcoltbl,L"ColumnLayout") == 0)
+		if( m_columns.LoadUserDefinitionColumnTable(&pcoltbl,L"ColumnLayout.RecycleBin") == 0)
 			return FALSE;
 
 		LVCOLUMN lvc = {0};
@@ -457,15 +478,15 @@ public:
 		return TRUE;
 	}
 
-	int Insert(HWND hWndList,int iGroupId,int iItem,int iImage,CShellItem *pFI)
+	int Insert(HWND hWndList,int iGroupId,int iItem,int iImage,RECYCLEBIN_FILE_ITEM *pRBI)
 	{
 		if( iItem == -1 )
 			iItem = ListView_GetItemCount(hWndList);
 
-		CLVShellItem *pItem = new CLVShellItem;
+		CRecycleBinItem *pItem = new CRecycleBinItem;
 
 		pItem->Type = 0;
-		pItem->pFI  = pFI;
+		pItem->pFI  = pRBI;
 
 		LVITEM lvi = {0};
 		lvi.mask     = LVIF_TEXT|LVIF_IMAGE|LVIF_INDENT|LVIF_PARAM;
@@ -487,35 +508,26 @@ public:
 
 		ListView_DeleteAllItems(m_hWndList);
 
-		PtrArray<CShellItem> *pa = new PtrArray<CShellItem>;
+		if( m_pRecycleBinItem != NULL )
+		{
+			FreeRecycleBinItems(m_pRecycleBinItem);
+		}
 
-		pa->Create( 4096 );
-
-		hr = EnumShellItems(pSel->pGuid,pSel->pszPath,pa);
+		RECYCLEBINITEMLIST *pRecycleBinItem = NULL;
+		hr = EnumRecycleBinItems(&pRecycleBinItem);
 
 		if( hr == S_OK )
 		{
-			_SafeMemFree(m_pszCurPath);
-
-			m_CurGuid = *pSel->pGuid;
-			if( pSel->pszPath )
-				m_pszCurPath = _MemAllocString(pSel->pszPath);
-
-			SHELLITEMLIST fl = {0};
-			fl.cItemCount = pa->GetCount();
-			fl.pFI = (CShellItem **)pa->GetData();
-			fl.Reserved = pSel->pszPath;
-
 			ULONG i;
-			for(i = 0; i < fl.cItemCount; i++)
+			for(i = 0; i < pRecycleBinItem->cItemCount; i++)
 			{
-				Insert(m_hWndList,-1,i,I_IMAGECALLBACK,fl.pFI[i]);
+				Insert(m_hWndList,-1,i,I_IMAGECALLBACK,&pRecycleBinItem->Item[i]);
 			}
 
 			DoSort(m_Sort.CurrentSubItem);
 		}
 
-		delete pa;
+		m_pRecycleBinItem = pRecycleBinItem;
 
 		SetRedraw(m_hWndList,TRUE);
 
@@ -534,14 +546,18 @@ public:
 		switch( CmdId )
 		{
 			case ID_EDIT_COPY:
+				*State = ListView_GetSelectedCount(m_hWndList) ? UPDUI_ENABLED : UPDUI_DISABLED;
+				return S_OK;
 			case ID_FILE_OPEN_FILE:
 				*State = ListView_GetSelectedCount(m_hWndList) ? UPDUI_ENABLED : UPDUI_DISABLED;
 				return S_OK;
 			case ID_EDIT_FIND:
 			case ID_EDIT_FIND_NEXT:
 			case ID_EDIT_FIND_PREVIOUS:
-			case ID_VIEW_REFRESH:
 				*State = ListView_GetItemCount(m_hWndList) ? UPDUI_ENABLED : UPDUI_DISABLED;
+				return S_OK;
+			case ID_VIEW_REFRESH:
+				*State = UPDUI_ENABLED;
 				return S_OK;
 		}
 		return S_FALSE;
@@ -554,11 +570,14 @@ public:
 			case ID_EDIT_COPY:
 				OnCmdEditCopy();
 				break;
-			case ID_FILE_OPEN_FILE:
-				OnCmdOpenFile();
-				break;
 			case ID_VIEW_REFRESH:
 				OnCmdRefresh();
+				break;
+			case ID_RECYCLEBIN_RESTORE:
+				OnCmdRestoreFile();
+				break;
+			case ID_RECYCLEBIN_DELETE:
+				OnCmdDeleteFile();
 				break;
 		}
 		return S_OK;
@@ -576,32 +595,167 @@ public:
 		}
 	}
 
-	void OnCmdOpenFile()
-	{
-		int iItem = ListViewEx_GetCurSel(m_hWndList);
-		if( iItem != -1 )
-			OpenItem(iItem);
-	}
-
 	void OnCmdRefresh()
 	{
 		SELECT_ITEM sel = {0};
-		sel.pGuid = &m_CurGuid;
-		sel.pszPath = m_pszCurPath;
 		FillItems(&sel);
 	}
 
-	//////////////////////////////////////////////////////////////////////////
-	//
-	//  Works
-	//
-private:
-	HRESULT OpenItem(int iItem)
+	void OnCmdRestoreFile()
 	{
-		CLVShellItem *pItem = (CLVShellItem *)ListViewEx_GetItemData(m_hWndList,iItem);
+		int iSelItem = ListView_GetNextItem(m_hWndList,-1,LVNI_SELECTED);
+		if( iSelItem == -1 )
+			return;
 
-		return OpenShellItemIL((LPITEMIDLIST)pItem->pFI->pidl);
+		int iItem = iSelItem;
+		if( iItem != -1 )
+		{
+			HRESULT hr;
+			do
+			{
+				CRecycleBinItem *pItem = (CRecycleBinItem *)ListViewEx_GetItemData(m_hWndList,iItem);
+
+				hr = ExecRecycleBinItemCommand(m_hWnd,pItem->pFI->pidl,"undelete");
+
+				if( hr == S_OK )
+				{
+					ListView_DeleteItem(m_hWndList,iItem);
+					iItem--;
+				}
+
+				iItem = ListView_GetNextItem(m_hWndList,iItem,LVNI_SELECTED);
+			}
+			while(iItem != -1);
+		}
+
+		ListView_SetItemState(m_hWndList,iSelItem,LVNI_FOCUSED,LVNI_FOCUSED);
+		SetFocus(m_hWndList);
 	}
+
+	LRESULT OnCmdDeleteFile()
+	{
+		if( GetVersion() < 0x600 )
+		{
+			int iSelItem = ListView_GetNextItem(m_hWndList,-1,LVNI_SELECTED);
+			if( iSelItem == -1 )
+				return 0;
+
+			int iItem = iSelItem;
+			if( iItem != -1 )
+			{
+				HRESULT hr;
+				do
+				{
+					CRecycleBinItem *pItem = (CRecycleBinItem *)ListViewEx_GetItemData(m_hWndList,iItem);
+
+					hr = ExecRecycleBinItemCommand(m_hWnd,pItem->pFI->pidl,"delete");
+
+					if( hr == S_OK )
+					{
+						ListView_DeleteItem(m_hWndList,iItem);
+						iItem--;
+					}
+
+					iItem = ListView_GetNextItem(m_hWndList,iItem,LVNI_SELECTED);
+				}
+				while(iItem != -1);
+			}
+
+			ListView_SetItemState(m_hWndList,iSelItem,LVNI_FOCUSED,LVNI_FOCUSED);
+			SetFocus(m_hWndList);
+
+			return 0;
+		}
+
+		int iSelItem = ListView_GetNextItem(m_hWndList,-1,LVNI_SELECTED);
+		if( iSelItem == -1 )
+			return 0;
+
+		int iItem = iSelItem;
+		if( iItem != -1 )
+		{
+			CSimpleValArray<LPITEMIDLIST> idls;
+
+			HRESULT hr;
+			do
+			{
+				CRecycleBinItem *pItem = (CRecycleBinItem *)ListViewEx_GetItemData(m_hWndList,iItem);
+
+				idls.Add( pItem->pFI->pidl );
+
+				iItem = ListView_GetNextItem(m_hWndList,iItem,LVNI_SELECTED);
+			}
+			while(iItem != -1);
+
+			IShellFolder *pBitBucketFolder = NULL;
+			IShellItemArray *psiItemArray = NULL;
+			IFileOperation *pfo = NULL;
+			do
+			{
+				hr = GetRecycleBinFolder( &pBitBucketFolder );
+				if( FAILED(hr) )
+					break;
+
+				hr = SHCreateShellItemArray(NULL,pBitBucketFolder,
+							idls.GetCount(),
+							(PCUITEMID_CHILD_ARRAY)idls.GetBuffer(),
+							&psiItemArray);
+				if( FAILED(hr) )
+					break;
+
+				hr = CoCreateInstance(CLSID_FileOperation,NULL,CLSCTX_INPROC_SERVER,
+							__uuidof(IFileOperation),(PVOID *)&pfo);
+				if( FAILED(hr) )
+						break;
+
+				pfo->SetOwnerWindow( m_hWnd );
+
+				HWND hwndActive = GetActiveWindow();
+				EnableWindow(hwndActive,FALSE);
+
+				hr = pfo->DeleteItems(psiItemArray);
+
+				if( SUCCEEDED(hr) )
+				{
+					hr = pfo->PerformOperations();
+				}
+
+				EnableWindow(hwndActive,TRUE);
+
+				//
+				// Update list view
+				//
+				iItem = ListView_GetNextItem(m_hWndList,-1,LVNI_ALL|LVNI_SELECTED);
+				if( iItem != - 1 )
+				{
+					do
+					{
+						CRecycleBinItem *pItem = (CRecycleBinItem *)ListViewEx_GetItemData(m_hWndList,iItem);
+
+						if( !PathFileExists( pItem->pFI->ManagementPath ) )
+						{
+							ListView_DeleteItem(m_hWndList,iItem);
+							iItem--;
+						}
+
+						iItem = ListView_GetNextItem(m_hWndList,iItem,LVNI_SELECTED);
+					}
+					while(iItem != -1);
+				}
+				ListView_SetItemState(m_hWndList,iSelItem,LVNI_FOCUSED,LVNI_FOCUSED);
+				SetFocus(m_hWndList);
+
+			} while( 0 );
+
+			_SAFE_RELEASE(pBitBucketFolder);
+			_SAFE_RELEASE(psiItemArray);
+			_SAFE_RELEASE(pfo);
+		}
+
+		return 0;
+	}
+
+private:
 
 	//////////////////////////////////////////////////////////////////////////
 	//
@@ -609,103 +763,98 @@ private:
 	//
 	typedef struct _SORT_OPTION
 	{
-		CShellItemListViewPage *pThis;
+		CRecycleBinListViewPage *pThis;
 		UINT id;
 		int direction;
 	} SORT_OPTION;
 
-	int comp_name(CLVShellItem *p1,CLVShellItem *p2,const void *p)
+	int comp_name(CRecycleBinItem *pItem1,CRecycleBinItem *pItem2, const void *p)
 	{
-		CLVShellItem *pItem1 = (CLVShellItem *)p1;
-		CLVShellItem *pItem2 = (CLVShellItem *)p2;
-		SORT_OPTION *op = (SORT_OPTION *)p;
-		
-		int iret;
-		if( op->direction == 2 )
-			iret = _COMP(pItem1->pFI->EnumOrderIndex,pItem2->pFI->EnumOrderIndex);
-		else
+		return StrCmpLogicalW(pItem1->pFI->Name,pItem2->pFI->Name);
+	}
+
+	int comp_originalfilepath(CRecycleBinItem *pItem1,CRecycleBinItem *pItem2, const void *p)
+	{
+		return StrCmpLogicalW(pItem1->pFI->OriginalPath,pItem2->pFI->OriginalPath);
+	}
+
+	int comp_trushfilepath(CRecycleBinItem *pItem1,CRecycleBinItem *pItem2, const void *p)
+	{
+		return StrCmpLogicalW(pItem1->pFI->ManagementPath,pItem2->pFI->ManagementPath);
+	}
+
+	int comp_originallastwritedate(CRecycleBinItem *pItem1,CRecycleBinItem *pItem2, const void *p)
+	{
+		return _COMP(pItem1->pFI->WriteTime,pItem2->pFI->WriteTime);
+	}
+
+	int comp_deletedtime(CRecycleBinItem *pItem1,CRecycleBinItem *pItem2, const void *p)
+	{
+		return _COMP(pItem1->pFI->TrushFileInfo.ChangeTime.QuadPart,pItem2->pFI->TrushFileInfo.ChangeTime.QuadPart);
+	}
+
+	int comp_size(CRecycleBinItem *pItem1,CRecycleBinItem *pItem2, const void *p)
+	{
+		return _COMP(pItem1->pFI->Size,pItem2->pFI->Size);
+	}
+
+	void init_compare_proc_def_table()
+	{
+		static COMPARE_HANDLER_PROC_DEF<CRecycleBinListViewPage,CRecycleBinItem> comp_proc[] = 
 		{
-			int d = (op->direction == 0) ? 1  : -1;
-			iret = StrCmp(pItem1->pFI->hdr.FileName,pItem2->pFI->hdr.FileName);
-			iret *= d;
-		}
-		return iret;
-	}
-
-	int comp_parsename(CLVShellItem *p1,CLVShellItem *p2,const void *p)
-	{
-		CLVShellItem *pItem1 = (CLVShellItem *)p1;
-		CLVShellItem *pItem2 = (CLVShellItem *)p2;
-		SORT_OPTION *op = (SORT_OPTION *)p;
-		return StrCmp(pItem1->pFI->hdr.Path,pItem2->pFI->hdr.Path);
-	}
-
-	int comp_attributes(CLVShellItem *p1,CLVShellItem *p2,const void *p)
-	{
-		CLVShellItem *pItem1 = (CLVShellItem *)p1;
-		CLVShellItem *pItem2 = (CLVShellItem *)p2;
-		SORT_OPTION *op = (SORT_OPTION *)p;
-
-		ULONG ln1,ln2;
-
-		ln1 = pItem1->pFI->FileAttributes;
-		ln2 = pItem2->pFI->FileAttributes;
-
-		return _COMP(ln1,ln2);
-	}
-
-	void InitCompareItemTable()
-	{
-		static COMPARE_HANDLER_PROC_DEF<CShellItemListViewPage,CLVShellItem> comp_proc[] = 
-		{
-			{COLUMN_Name,                &CShellItemListViewPage::comp_name},
-			{COLUMN_ShellItemAttributes, &CShellItemListViewPage::comp_attributes},
-			{COLUMN_ShellItemParseName,  &CShellItemListViewPage::comp_parsename},
+			{COLUMN_Name,                  &CRecycleBinListViewPage::comp_name},
+			{COLUMN_Size,                  &CRecycleBinListViewPage::comp_size},
+			{COLUMN_OriginalFilePath,      &CRecycleBinListViewPage::comp_originalfilepath},
+			{COLUMN_TrushFilePath,         &CRecycleBinListViewPage::comp_trushfilepath},
+			{COLUMN_DeletedTime,           &CRecycleBinListViewPage::comp_deletedtime},
+			{COLUMN_OriginalLastWriteDate, &CRecycleBinListViewPage::comp_originallastwritedate},
 		};
 
-		m_comp_proc = new COMPARE_HANDLER_PROC_DEF<CShellItemListViewPage,CLVShellItem>[COLUMN_MaxCount];
+		m_comp_proc = new COMPARE_HANDLER_PROC_DEF<CRecycleBinListViewPage,CRecycleBinItem>[COLUMN_MaxItem];
 
-		ZeroMemory(m_comp_proc,sizeof(COMPARE_HANDLER_PROC_DEF<CShellItemListViewPage,CLVShellItem>)*COLUMN_MaxItem);
+		ZeroMemory(m_comp_proc,sizeof(COMPARE_HANDLER_PROC_DEF<CRecycleBinListViewPage,CRecycleBinItem>)*COLUMN_MaxItem);
 
-		for(int i = 0; i < _countof(comp_proc); i++)
+		int i;
+		for(i = 0; i < _countof(comp_proc); i++)
 		{
 			m_comp_proc[ comp_proc[i].colid ].colid = comp_proc[i].colid;
 			m_comp_proc[ comp_proc[i].colid ].proc  = comp_proc[i].proc;
 		}
 	}
 
-	int CompareItem(CLVShellItem *pItem1,CLVShellItem *pItem2,SORT_OPTION *op)
+	int CompareItem(CRecycleBinItem *pItem1,CRecycleBinItem *pItem2,SORT_PARAM<CRecycleBinListViewPage> *op)
 	{
-		int iResult = 0;
-
 		if( m_comp_proc == NULL )
 		{
-			InitCompareItemTable();
+			init_compare_proc_def_table();
 		}
 
-		if( iResult == 0 && m_comp_proc[op->id].proc != NULL )
-			iResult = (this->*m_comp_proc[op->id].proc)(pItem1,pItem2,op);
+		int iResult = 0;
 
-		if( op->id != COLUMN_Name )
-			iResult *= op->direction;
+		if( iResult == 0 && m_comp_proc[op->id].proc != NULL )
+		{
+			iResult = (this->*m_comp_proc[op->id].proc)(pItem1,pItem2,op);
+		}
+
+		iResult *= op->direction;
 
 		return iResult;
 	}
 
 	static int CALLBACK CompareProc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort)
 	{
-		CLVShellItem *pItem1 = (CLVShellItem *)lParam1;
-		CLVShellItem *pItem2 = (CLVShellItem *)lParam2;
-		SORT_OPTION *op = (SORT_OPTION *)lParamSort;
+		CRecycleBinItem *pItem1 = (CRecycleBinItem *)lParam1;
+		CRecycleBinItem *pItem2 = (CRecycleBinItem *)lParam2;
+		SORT_PARAM<CRecycleBinListViewPage> *op = (SORT_PARAM<CRecycleBinListViewPage> *)lParamSort;
 		return op->pThis->CompareItem(pItem1,pItem2,op);
 	}
 
-	void SortItems(UINT id,CLVShellItem *)
+	void SortItems(UINT id)
 	{
-		SORT_OPTION op = {0};
+		SORT_PARAM<CRecycleBinListViewPage> op = {0};
 		op.pThis = this;
 		op.id = id;
-		op.direction = m_Sort.Direction; // 1 or -1 do not use 0 (exclude the name column)
+		op.direction = m_Sort.Direction; // 1 or -1 do not use 0
 		ListView_SortItems(m_hWndList,CompareProc,&op);
 	}
 

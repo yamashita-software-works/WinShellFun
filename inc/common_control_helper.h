@@ -1,5 +1,7 @@
 #pragma once
 
+#define _SAFE_RELEASE(p) if(p) { p->Release(); p = NULL; }
+
 __forceinline LPARAM TreeView_GetItemData(HWND hwndTV,HTREEITEM hItem) {
 	TVITEMEX tviex = {0};
 	tviex.mask = TVIF_PARAM;
@@ -53,6 +55,11 @@ inline LPARAM ListViewEx_GetHeaderItemData(HWND hwndLV,int index)
 	return hdi.lParam;
 }
 
+inline int ListViewEx_GetColumnCount(HWND hwndLV)
+{
+	return Header_GetItemCount(ListView_GetHeader(hwndLV));
+}
+
 inline int ListViewEx_GetSubItem(HWND hwndLV,int iColumn)
 {
 	LVCOLUMN lvi = {0};
@@ -100,6 +107,19 @@ inline int ListViewEx_SubItemHitTest(HWND hwndLV,POINT pt, UINT* pFlags)
 	if (pFlags != NULL)
 		*pFlags = hti.flags;
 	return hti.iSubItem;
+}
+
+inline BOOL ListViewEx_SetItemState(HWND hwndLV,int iItem,UINT state,UINT mask)
+{
+	LVITEM lvi;
+	lvi.stateMask = mask;
+	lvi.state = state;
+	return (BOOL)SendMessage(hwndLV,LVM_SETITEMSTATE,(WPARAM)(iItem),(LPARAM)&lvi);
+}
+
+inline BOOL ListViewEx_ClearSelectAll(HWND hwndLV,BOOL bClearFocus=FALSE)
+{
+	return ListViewEx_SetItemState(hwndLV,-1,0,LVIS_SELECTED|(bClearFocus ? LVNI_FOCUSED : 0));
 }
 
 __forceinline int ListViewEx_GetCurSel(HWND hwndLV)

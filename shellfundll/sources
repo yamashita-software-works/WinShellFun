@@ -28,7 +28,7 @@ SUBSYSTEM_NATVER=5.01
 !endif
 
 #
-# makefile.incを参照
+# Referred to makefile.inc at post build.
 #
 NTTARGETFILES=PostBuildSteps
 
@@ -42,10 +42,10 @@ NTTARGETFILES=PostBuildSteps
 NOT_LEAN_AND_MEAN=1
 
 #
-# Cランタイムライブラリ
-#   fre版:msvcrt.dllを使用
-#   chk版:マルチスレッド版Cランタイム(libcmt.lib)を使用
-#         msvcrtd.dllが入手できない場合でも実行できる様にする為。
+# C Runtime Library
+#   fre:use msvcrt.dll
+#   chk:use multithread static debug library(libcmtd.lib)
+#       run without msvcrtd.dll.
 #
 !if $(FREEBUILD)
 USE_MSVCRT=1
@@ -54,7 +54,7 @@ USE_LIBCMT=1
 !endif
 
 #
-# DEBUG版ではCランタイムにlibcmtd.libを使用
+# Using libcmtd.lib when debug build.
 #
 !if !$(FREEBUILD)
 DEBUG_CRTS=1
@@ -98,6 +98,9 @@ SOURCES = \
 	shellfolderwindow.cpp\
 	shellfoldertree.cpp\
 	shellfolderview.cpp\
+	recyclebinwindow.cpp\
+	recyclebinview.cpp\
+	recyclebinhelp.cpp\
 	miscshell.cpp\
 	folderhelp.cpp\
 	column.cpp\

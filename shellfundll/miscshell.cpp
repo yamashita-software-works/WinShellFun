@@ -1,12 +1,22 @@
+//***************************************************************************
+//*                                                                         *
+//*  miscshell.cpp                                                          *
+//*                                                                         *
+//*  Miscellaneous functions.                                               *
+//*                                                                         *
+//*  Author: YAMASHITA Katsuhiro                                            *
+//*                                                                         *
+//*  Create: 2023-06-28                                                     *
+//*                                                                         *
+//***************************************************************************
 //
-//  miscshell.h
+//  Copyright (C) YAMASHITA Katsuhiro. All rights reserved.
+//  Licensed under the MIT License.
 //
-//  2023.06.28
-// 
 #include "stdafx.h"
 #include "miscshell.h"
 
-void InitShellImageList(HIMAGELIST& hImageList,HIMAGELIST& hImageListSmall)
+HRESULT GetShellImageList(HIMAGELIST *phImageList,HIMAGELIST *phImageListSmall)
 {
 	// Get Desktop folder
 	LPITEMIDLIST pidl;
@@ -16,13 +26,29 @@ void InitShellImageList(HIMAGELIST& hImageList,HIMAGELIST& hImageListSmall)
 	{
 		// Get system image lists
 		SHFILEINFO sfi = { 0 };
-		hImageList = (HIMAGELIST)SHGetFileInfo((LPWSTR)pidl, 0, &sfi, sizeof(sfi),SHGFI_PIDL|SHGFI_SYSICONINDEX|SHGFI_ICON);
 
-		memset(&sfi, 0, sizeof(SHFILEINFO));
-		hImageListSmall = (HIMAGELIST)SHGetFileInfo((LPWSTR)pidl, 0, &sfi, sizeof(sfi),SHGFI_PIDL|SHGFI_SYSICONINDEX|SHGFI_SMALLICON);
+		if( phImageList )
+		{
+			*phImageList = (HIMAGELIST)SHGetFileInfo((LPWSTR)pidl, 0, &sfi, sizeof(sfi),SHGFI_PIDL|SHGFI_SYSICONINDEX);
+		}
+
+		if( phImageListSmall )
+		{
+			memset(&sfi, 0, sizeof(SHFILEINFO));
+			*phImageListSmall = (HIMAGELIST)SHGetFileInfo((LPWSTR)pidl, 0, &sfi, sizeof(sfi),SHGFI_PIDL|SHGFI_SYSICONINDEX|SHGFI_SMALLICON);
+		}
 
 		CoTaskMemFree(pidl);
+
+		hr = S_OK;
+
+		if( phImageList && *phImageList == NULL )
+			hr = E_FAIL;
+		else if( phImageListSmall && *phImageListSmall == NULL )
+			hr = E_FAIL;
 	}
+
+	return hr;
 }
 
 int GetShellIconIndexIL(LPITEMIDLIST lpi, UINT uFlags)

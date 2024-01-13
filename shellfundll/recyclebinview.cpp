@@ -1,12 +1,12 @@
 //****************************************************************************
 //
-//  shellfolderview.cpp
+//  recyclebinview.cpp
 //
-//  Implements the shell folder view base window.
+//  Implements the recycle bin folder viewer base window.
 //
 //  Auther: YAMASHITA Katsuhiro
 //
-//  Create: 2023.06.26
+//  Create: 2024.01.05
 //
 //****************************************************************************
 //
@@ -16,11 +16,11 @@
 #include "stdafx.h"
 #include "resource.h"
 #include "shellfun.h"
-#include "shellfolderview.h"
+#include "recyclebinview.h"
 #include "pagewbdbase.h"
-#include "page_shellitemlist.h"
+#include "page_recyclebinlist.h"
 
-class CShellFolderView : 
+class CRecycleBinFolderView : 
 	public CBaseWindow,
 	public IViewBaseWindow
 {
@@ -28,14 +28,14 @@ class CShellFolderView :
 	CPageWndBase *m_pViewTable[VIEW_TYPE_MAX_COUNT];
 
 public:
-	CShellFolderView()
+	CRecycleBinFolderView()
 	{
 		m_hWnd = NULL;
 		m_pBase = NULL;
 		memset(m_pViewTable,0,sizeof(m_pViewTable));
 	}
 
-	virtual ~CShellFolderView()
+	virtual ~CRecycleBinFolderView()
 	{
 	}
 
@@ -55,7 +55,7 @@ public:
 
 	LRESULT OnCreate(HWND hWnd,UINT,WPARAM,LPARAM lParam)
 	{
-		SetWindowText(hWnd,L"CShellFolderView");
+		SetWindowText(hWnd,L"CRecycleBinFolderView");
 		return 0;
 	}
 
@@ -126,13 +126,12 @@ public:
 
 		switch( nView )
 		{
-			case VIEW_FOLDERCONTENTSBROWSER:
+			case VIEW_RECYCLEBINFOLDER:
 			{
-				pNew = GetOrAllocWndObjct<CShellItemListViewPage>(VIEW_FOLDERCONTENTSBROWSER);
+				pNew = GetOrAllocWndObjct<CRecycleBinListViewPage>(VIEW_RECYCLEBINFOLDER);
 				break;
 			}
 			default:
-				ASSERT(FALSE);
 				return -1;
 		}
 
@@ -212,8 +211,8 @@ public:
 	{
 		switch( SelItem->ViewType )
 		{
-			case VIEW_FOLDERCONTENTSBROWSER:
-				SelectPage( VIEW_FOLDERCONTENTSBROWSER );
+			case VIEW_RECYCLEBINFOLDER:
+				SelectPage( VIEW_RECYCLEBINFOLDER );
 				break;
 			default:
 				ASSERT(FALSE);
@@ -229,16 +228,19 @@ public:
 
 	virtual HRESULT QueryCmdState(UINT CmdId,UINT *State)
 	{
+		ASSERT(m_pBase != NULL);
 		return m_pBase->QueryCmdState(CmdId,State);
 	}
 
 	virtual HRESULT InvokeCommand(UINT CmdId)
 	{
+		ASSERT(m_pBase != NULL);
 		return m_pBase->InvokeCommand(CmdId);
 	}
 
 	virtual HRESULT PreTranslateMessage(MSG *pMsg)
 	{
+		ASSERT(m_pBase != NULL);
 		return m_pBase->PreTranslateMessage(pMsg);
 	}
 
@@ -255,14 +257,14 @@ public:
 
 //----------------------------------------------------------------------------
 //
-//  CreateShellFolderViewObject()
+//  CreateRecycleBinWindowObject()
 //
 //----------------------------------------------------------------------------
-HRESULT CreateShellFolderViewObject(HINSTANCE hInstance,IViewBaseWindow **pObject)
+HRESULT CreateRecycleBinWindowObject(HINSTANCE hInstance,IViewBaseWindow **pObject)
 {
-	CShellFolderView *pWnd = new CShellFolderView;
+	CRecycleBinFolderView *pWnd = new CRecycleBinFolderView;
 
-	CShellFolderView::RegisterClass(hInstance);
+	CRecycleBinFolderView::RegisterClass(hInstance);
 
 	*pObject = static_cast<IViewBaseWindow *>(pWnd);
 

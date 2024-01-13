@@ -26,6 +26,9 @@
 #define ID_EDIT_UNDO                    0xE12B
 #define ID_EDIT_REDO                    0xE12C
 
+#define ID_EDIT_FIND_NEXT               ID_EDIT_REPEAT
+#define ID_EDIT_FIND_PREVIOUS           0xE12D
+
 // Window commands
 #define ID_WINDOW_NEW                   0xE130
 #define ID_WINDOW_ARRANGE               0xE131
@@ -33,8 +36,18 @@
 #define ID_WINDOW_TILE_HORZ             0xE133
 #define ID_WINDOW_TILE_VERT             0xE134
 #define ID_WINDOW_SPLIT                 0xE135
+
 #ifndef RC_INVOKED      // code only
 #define AFX_IDM_WINDOW_FIRST            0xE130
 #define AFX_IDM_WINDOW_LAST             0xE13F
 #define AFX_IDM_FIRST_MDICHILD          0xFF00  // window list starts here
 #endif //!RC_INVOKED
+
+#define ID_WINDOW_TABFIRST              0xFF00	// = ATL_IDM_FIRST_MDICHILD
+#define ID_WINDOW_TABLAST               0xFFFD
+#define ID_WINDOW_SHOWTABLIST           0xFFFE
+
+#define ID_VIEW_TOOLBAR                 0xE800
+#define ID_VIEW_STATUS_BAR              0xE801
+#define ID_VIEW_REFRESH                 0xE803
+#define ID_VIEW_RIBBON                  0xE804

@@ -1,5 +1,22 @@
+//****************************************************************************
+//
+//  dllmain.cpp
+//
+//  Dll entry procedure
+//
+//  Auther: YAMASHITA Katsuhiro
+//
+//  Create: 2023.04.18
+//
+//****************************************************************************
+//
+//  Copyright (C) YAMASHITA Katsuhiro. All rights reserved.
+//  Licensed under the MIT License.
+//
 #include "stdafx.h"
+#include "shellfun.h"
 #include "shellfolderwindow.h"
+#include "recyclebinwindow.h"
 
 static HINSTANCE hInstance = NULL;
 static PWSTR g_pszIniFilePath = NULL;
@@ -34,27 +51,30 @@ BOOL APIENTRY DllMain( HMODULE hModule,
 EXTERN_C
 HWND
 WINAPI
-ShellFolderCreateWindow(
-	HWND hwnd
+CreateShellFunWindow(
+	HWND hwnd,
+	UINT ViewType
 	)
 {
-	return ShellFolderWindow_CreateWindow(hwnd);
+	if( ViewType == VIEW_FOLDERCONTENTSBROWSER )
+		return ShellFolderWindow_CreateWindow(hwnd);
+	else if( ViewType == VIEW_RECYCLEBINFOLDER )
+		return CreateRecycleBinWindow(hwnd);
+	return NULL;
 }
 
 EXTERN_C
 BOOL
 WINAPI
-ShellFolderInitData(
-	HWND hwndSHFolder,
-	PCWSTR pszReserved,
-	RECT *prc
+SetIniFilePath(
+	PCWSTR pszIniPath
 	)
 {
-	if( pszReserved && g_pszIniFilePath == NULL )
-		g_pszIniFilePath = _MemAllocString(pszReserved);
-
-	ShellFolderWindow_InitData(hwndSHFolder,NULL);
-	ShellFolderWindow_InitLayout(hwndSHFolder,prc);
+	_SafeMemFree( g_pszIniFilePath );
+	if( pszIniPath )
+	{
+		g_pszIniFilePath = _MemAllocString(pszIniPath);
+	}
 	return TRUE;
 }
 
@@ -72,19 +92,4 @@ GetIniFilePath(
 			return TRUE;
 	}
 	return FALSE;
-#if 0
-	// Try to get dll module name ini file.
-	GetModuleFileName(hInstance,pszIniPath,cchIniPath);
-	PathRemoveExtension(pszIniPath);
-	PathAddExtension(pszIniPath,L".ini");
-
-	if( !PathFileExists(pszIniPath) )
-	{
-		SetLastError(ERROR_FILE_NOT_FOUND);
-		return FALSE;
-	}
-
-	SetLastError(ERROR_SUCCESS);
-	return TRUE;
-#endif
 }
